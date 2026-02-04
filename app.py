@@ -1,93 +1,52 @@
-from flask import Flask, request, jsonify
-import requests
-from bs4 import BeautifulSoup
-import re
-import json
-
-app = Flask(__name__)
-
-# 🛡️ Ahmad RDX Premium Headers (iPhone Simulation)
-PRO_HEADERS = {
-    'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1',
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-    'Accept-Language': 'en-US,en;q=0.9',
-    'Referer': 'https://www.google.com/'
-}
-
-@app.route('/')
-def home():
-    return "🦅 Ahmad RDX God-Mode API is LIVE & SHIELDED."
-
 # ---------------------------------------------------------
-# 📸 INSTAGRAM: ULTIMATE FALLBACK (Mirror 1: Picuki, Mirror 2: Imginn)
+# 📸 INSTAGRAM: THE UNSTOPPABLE SCRAPER (v4.0 - Stealth Mode)
 # ---------------------------------------------------------
 @app.route('/ig-info')
 def ig_info():
     username = request.args.get('username')
     if not username: return jsonify({"status": False})
     
-    # --- Try Mirror 1: Picuki ---
+    # Mirror 1: Instanavigation (Bypass Block)
     try:
-        url = f"https://www.picuki.com/profile/{username}"
-        res = requests.get(url, headers=PRO_HEADERS, timeout=10)
+        url = f"https://instanavigation.com/user-profile/{username}"
+        # Random User-Agent change
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Linux; Android 13; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+            'Referer': 'https://www.google.com/'
+        }
+        res = requests.get(url, headers=headers, timeout=12)
         if res.status_code == 200:
             soup = BeautifulSoup(res.text, 'html.parser')
-            name = soup.find('h1', class_='profile-name-bottom').text.strip() if soup.find('h1', class_='profile-name-bottom') else username
-            stats = soup.find_all('span', class_='profile-info-stats')
-            dp = soup.find('div', class_='profile-avatar').find('img')['src']
+            
+            # Data extraction logic based on Instanavigation structure
+            name = soup.find('h1').text.strip() if soup.find('h1') else username
+            stats = soup.find_all('div', class_='stats-item') # Posts, Followers, Following
+            dp = soup.find('div', class_='user-avatar').find('img')['src'] if soup.find('div', class_='user-avatar') else ""
+            
             return jsonify({
-                "status": True, "full_name": name, "username": username,
-                "followers": stats[1].text.strip(), "posts_count": stats[0].text.strip(),
-                "profile_pic_url_hd": dp, "source": "Picuki"
+                "status": True,
+                "full_name": name,
+                "username": username,
+                "followers": stats[1].find('span').text.strip() if len(stats) > 1 else "N/A",
+                "posts_count": stats[0].find('span').text.strip() if len(stats) > 0 else "N/A",
+                "profile_pic_url_hd": dp,
+                "source": "InstaNav"
             })
     except: pass
 
-    # --- Try Mirror 2: Imginn (Fallback) ---
+    # Mirror 2: Save-Insta Fallback
     try:
-        url = f"https://imginn.com/{username}/"
-        res = requests.get(url, headers=PRO_HEADERS, timeout=10)
+        url = f"https://www.save-insta.com/profile-downloader/?username={username}"
+        res = requests.get(url, headers=headers, timeout=10)
         soup = BeautifulSoup(res.text, 'html.parser')
+        # Simple extraction for backup
         return jsonify({
             "status": True,
-            "full_name": soup.find('div', class_='info').find('h2').text.strip(),
-            "followers": soup.find_all('span', class_='count')[1].text,
-            "profile_pic_url_hd": soup.find('div', class_='avatar').find('img')['src'],
-            "source": "Imginn"
+            "full_name": username,
+            "profile_pic_url_hd": soup.find('img', id='profile_img')['src'],
+            "source": "SaveInsta"
         })
     except:
-        return jsonify({"status": False, "msg": "Both IG mirrors are currently blocking Render IP."})
-
-# ---------------------------------------------------------
-# 🖼️ PINTEREST: DEEP SCRAPER (JSON Extraction)
-# ---------------------------------------------------------
-@app.route('/pin-search')
-def pin_search():
-    query = request.args.get('q')
-    num = int(request.args.get('number', 6))
-    
-    try:
-        url = f"https://www.pinterest.com/search/pins/?q={query}"
-        res = requests.get(url, headers=PRO_HEADERS, timeout=10)
+        return jsonify({"status": False, "msg": "Instagram servers are very tight right now. Try again later."})
         
-        # Pinterest hides data in <script id="__PJS_DATA__"> or similar
-        # We use a broad regex to catch all 736x (HD) or originals images
-        images = re.findall(r'https://i.pinimg.com/736x/.*?\.jpg', res.text)
-        
-        if not images:
-            # Try finding direct JSON links in script tags
-            images = re.findall(r'"url":"(https://i.pinimg.com/originals/.*?\.jpg)"', res.text)
-        
-        # Cleanup links (Remove backslashes)
-        final_list = [img.replace('\\', '') for img in list(dict.fromkeys(images))[:num]]
-
-        return jsonify({
-            "status": True if final_list else False,
-            "result": final_list,
-            "count": len(final_list)
-        })
-    except Exception as e:
-        return jsonify({"status": False, "error": str(e)})
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8080)
-    
