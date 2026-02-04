@@ -1,60 +1,64 @@
-from flask import Flask, request, jsonify, Response
+from flask import Flask, request, jsonify
 import requests
 from bs4 import BeautifulSoup
 import re
-import random
+import json
 
 app = Flask(__name__)
 
-# Professional Headers taake server ko lage hum asli browser hain
-HEADERS = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+# 🛡️ Ahmad RDX Premium Headers (iPhone Simulation)
+PRO_HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
     'Accept-Language': 'en-US,en;q=0.9',
+    'Referer': 'https://www.google.com/'
 }
 
 @app.route('/')
 def home():
-    return "🦅 Ahmad RDX Ultra-Stable API is ONLINE."
+    return "🦅 Ahmad RDX God-Mode API is LIVE & SHIELDED."
 
 # ---------------------------------------------------------
-# 📸 NEW INSTAGRAM SCRAPER (Picuki Engine - High Stability)
+# 📸 INSTAGRAM: ULTIMATE FALLBACK (Mirror 1: Picuki, Mirror 2: Imginn)
 # ---------------------------------------------------------
 @app.route('/ig-info')
 def ig_info():
     username = request.args.get('username')
     if not username: return jsonify({"status": False})
     
+    # --- Try Mirror 1: Picuki ---
     try:
         url = f"https://www.picuki.com/profile/{username}"
-        res = requests.get(url, headers=HEADERS, timeout=10)
-        
-        if res.status_code != 200:
-            return jsonify({"status": False, "msg": "Mirror blocked. Try later."})
-            
-        soup = BeautifulSoup(res.text, 'html.parser')
-        
-        # Profile Data Extraction
-        name = soup.find('h1', class_='profile-name-bottom').text.strip() if soup.find('h1', class_='profile-name-bottom') else username
-        stats = soup.find_all('span', class_='profile-info-stats')
-        # stats[0] = posts, stats[1] = followers, stats[2] = following
-        
-        dp = soup.find('div', class_='profile-avatar').find('img')['src'] if soup.find('div', class_='profile-avatar') else ""
-        bio = soup.find('div', class_='profile-description').text.strip() if soup.find('div', class_='profile-description') else "No Bio"
+        res = requests.get(url, headers=PRO_HEADERS, timeout=10)
+        if res.status_code == 200:
+            soup = BeautifulSoup(res.text, 'html.parser')
+            name = soup.find('h1', class_='profile-name-bottom').text.strip() if soup.find('h1', class_='profile-name-bottom') else username
+            stats = soup.find_all('span', class_='profile-info-stats')
+            dp = soup.find('div', class_='profile-avatar').find('img')['src']
+            return jsonify({
+                "status": True, "full_name": name, "username": username,
+                "followers": stats[1].text.strip(), "posts_count": stats[0].text.strip(),
+                "profile_pic_url_hd": dp, "source": "Picuki"
+            })
+    except: pass
 
+    # --- Try Mirror 2: Imginn (Fallback) ---
+    try:
+        url = f"https://imginn.com/{username}/"
+        res = requests.get(url, headers=PRO_HEADERS, timeout=10)
+        soup = BeautifulSoup(res.text, 'html.parser')
         return jsonify({
             "status": True,
-            "full_name": name,
-            "username": username,
-            "followers": stats[1].text.strip() if len(stats) > 1 else "N/A",
-            "posts_count": stats[0].text.strip() if len(stats) > 0 else "N/A",
-            "profile_pic_url_hd": dp,
-            "biography": bio
+            "full_name": soup.find('div', class_='info').find('h2').text.strip(),
+            "followers": soup.find_all('span', class_='count')[1].text,
+            "profile_pic_url_hd": soup.find('div', class_='avatar').find('img')['src'],
+            "source": "Imginn"
         })
-    except Exception as e:
-        return jsonify({"status": False, "error": str(e)})
+    except:
+        return jsonify({"status": False, "msg": "Both IG mirrors are currently blocking Render IP."})
 
 # ---------------------------------------------------------
-# 🖼️ NEW PINTEREST SCRAPER (Deep Search Engine)
+# 🖼️ PINTEREST: DEEP SCRAPER (JSON Extraction)
 # ---------------------------------------------------------
 @app.route('/pin-search')
 def pin_search():
@@ -62,27 +66,27 @@ def pin_search():
     num = int(request.args.get('number', 6))
     
     try:
-        # Pinterest mobile search logic
         url = f"https://www.pinterest.com/search/pins/?q={query}"
-        res = requests.get(url, headers=HEADERS, timeout=10)
+        res = requests.get(url, headers=PRO_HEADERS, timeout=10)
         
-        # Regex for different image sizes (HD, Medium, Small)
-        # 2026 Pattern Matcher
-        images = re.findall(r'https://i.pinimg.com/736x/.*?\.jpg|https://i.pinimg.com/originals/.*?\.jpg', res.text)
+        # Pinterest hides data in <script id="__PJS_DATA__"> or similar
+        # We use a broad regex to catch all 736x (HD) or originals images
+        images = re.findall(r'https://i.pinimg.com/736x/.*?\.jpg', res.text)
         
-        # Cleanup & Unique links
-        final_list = list(dict.fromkeys(images))[:num]
+        if not images:
+            # Try finding direct JSON links in script tags
+            images = re.findall(r'"url":"(https://i.pinimg.com/originals/.*?\.jpg)"', res.text)
         
-        if not final_list:
-            # Last resort fallback
-            final_list = re.findall(r'https://i.pinimg.com/236x/.*?\.jpg', res.text)[:num]
+        # Cleanup links (Remove backslashes)
+        final_list = [img.replace('\\', '') for img in list(dict.fromkeys(images))[:num]]
 
         return jsonify({
             "status": True if final_list else False,
-            "result": final_list
+            "result": final_list,
+            "count": len(final_list)
         })
-    except:
-        return jsonify({"status": False})
+    except Exception as e:
+        return jsonify({"status": False, "error": str(e)})
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8080)
