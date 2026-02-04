@@ -1,145 +1,89 @@
 from flask import Flask, request, jsonify, Response
 import requests
-import yt_dlp
-import google.generativeai as genai
 from bs4 import BeautifulSoup
 import re
-import base64
 import random
-import string
 
 app = Flask(__name__)
 
-# 🔑 API KEYS (Ahmad RDX Configuration)
-GEMINI_KEY = "AIzaSyBogHNOLXqUiX8r1YQ-bXzLMk4UsB7W2lk"
-genai.configure(api_key=GEMINI_KEY)
-model = genai.GenerativeModel('gemini-1.5-flash')
+# Professional Headers taake server ko lage hum asli browser hain
+HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Accept-Language': 'en-US,en;q=0.9',
+}
 
-# ---------------------------------------------------------
-# 🌍 1. HEALTH CHECK & HOME
-# ---------------------------------------------------------
 @app.route('/')
 def home():
-    return "🦅 Ahmad RDX Private API Server is ONLINE."
+    return "🦅 Ahmad RDX Ultra-Stable API is ONLINE."
 
 # ---------------------------------------------------------
-# 📧 2. PREMIUM MAIL SYSTEM (Mail.tm)
-# ---------------------------------------------------------
-@app.route('/gen-mail')
-def gen_mail():
-    try:
-        domain = requests.get("https://api.mail.tm/domains").json()['hydra:member'][0]['domain']
-        user = ''.join(random.choice(string.ascii_lowercase + string.digits) for _ in range(10))
-        email = f"{user}@{domain}"
-        password = "AhmadRdxPassword123"
-        
-        requests.post("https://api.mail.tm/accounts", json={"address": email, "password": password})
-        return jsonify({"status": True, "email": email, "password": password})
-    except Exception as e:
-        return jsonify({"status": False, "error": str(e)})
-
-@app.route('/check-mail')
-def check_mail():
-    email = request.args.get('email')
-    password = "AhmadRdxPassword123"
-    try:
-        token_res = requests.post("https://api.mail.tm/token", json={"address": email, "password": password}).json()
-        token = token_res['token']
-        headers = {"Authorization": f"Bearer {token}"}
-        msgs = requests.get("https://api.mail.tm/messages", headers=headers).json()['hydra:member']
-        
-        if not msgs:
-            return jsonify({"new_mail": False})
-        
-        last_msg_id = msgs[0]['id']
-        detail = requests.get(f"https://api.mail.tm/messages/{last_msg_id}", headers=headers).json()
-        return jsonify({
-            "new_mail": True,
-            "from": detail['from']['address'],
-            "subject": detail['subject'],
-            "body": detail['text'],
-            "date": detail['createdAt']
-        })
-    except:
-        return jsonify({"new_mail": False})
-
-# ---------------------------------------------------------
-# 🎥 3. SOCIAL DOWNLOADER (TikTok, FB, Insta)
-# ---------------------------------------------------------
-@app.route('/social-dl')
-def social_dl():
-    target_url = request.args.get('url')
-    ydl_opts = {'format': 'best', 'quiet': True, 'no_warnings': True}
-    try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(target_url, download=False)
-            return jsonify({
-                "status": True, 
-                "title": info.get('title', 'Video'),
-                "url": info.get('url'),
-                "source": info.get('extractor_key')
-            })
-    except Exception as e:
-        return jsonify({"status": False, "error": str(e)})
-
-# Video stream karne ke liye proxy (File attachment ke liye zaroori hai)
-@app.route('/proxy-dl')
-def proxy_dl():
-    try:
-        token = request.args.get('token')
-        real_url = base64.b64decode(token).decode('utf-8')
-        res = requests.get(real_url, stream=True)
-        return Response(res.iter_content(chunk_size=1024), content_type=res.headers['Content-Type'])
-    except:
-        return "Error", 400
-
-# ---------------------------------------------------------
-# 🧠 4. GEMINI SMART ENGINE (Chat + Draw Logic)
-# ---------------------------------------------------------
-@app.route('/gemini-all')
-def gemini_all():
-    prompt = request.args.get('q')
-    if not prompt: return jsonify({"status": False})
-    try:
-        instruction = f"Determine if user wants to DRAW or TALK. If DRAW, reply ONLY 'DRAW: <prompt>'. User: {prompt}"
-        response = model.generate_content(instruction)
-        reply = response.text
-        if "DRAW:" in reply:
-            img_prompt = reply.replace("DRAW:", "").strip()
-            return jsonify({"type": "image", "prompt": img_prompt, "url": f"https://image.pollinations.ai/prompt/{img_prompt.replace(' ', '%20')}?model=flux&nologo=true"})
-        return jsonify({"type": "text", "reply": reply})
-    except:
-        return jsonify({"type": "text", "reply": "Ahmad bhai, server busy hai!"})
-
-# ---------------------------------------------------------
-# 📸 5. PRIVATE SCRAPERS (IG & Pinterest)
+# 📸 NEW INSTAGRAM SCRAPER (Picuki Engine - High Stability)
 # ---------------------------------------------------------
 @app.route('/ig-info')
 def ig_info():
-    user = request.args.get('username')
+    username = request.args.get('username')
+    if not username: return jsonify({"status": False})
+    
     try:
-        res = requests.get(f"https://imginn.com/{user}/")
+        url = f"https://www.picuki.com/profile/{username}"
+        res = requests.get(url, headers=HEADERS, timeout=10)
+        
+        if res.status_code != 200:
+            return jsonify({"status": False, "msg": "Mirror blocked. Try later."})
+            
         soup = BeautifulSoup(res.text, 'html.parser')
+        
+        # Profile Data Extraction
+        name = soup.find('h1', class_='profile-name-bottom').text.strip() if soup.find('h1', class_='profile-name-bottom') else username
+        stats = soup.find_all('span', class_='profile-info-stats')
+        # stats[0] = posts, stats[1] = followers, stats[2] = following
+        
+        dp = soup.find('div', class_='profile-avatar').find('img')['src'] if soup.find('div', class_='profile-avatar') else ""
+        bio = soup.find('div', class_='profile-description').text.strip() if soup.find('div', class_='profile-description') else "No Bio"
+
         return jsonify({
             "status": True,
-            "full_name": soup.find('div', class_='info').find('h2').text.strip(),
-            "followers": soup.find_all('span', class_='count')[1].text,
-            "posts_count": soup.find_all('span', class_='count')[0].text,
-            "profile_pic_url_hd": soup.find('div', class_='avatar').find('img')['src']
+            "full_name": name,
+            "username": username,
+            "followers": stats[1].text.strip() if len(stats) > 1 else "N/A",
+            "posts_count": stats[0].text.strip() if len(stats) > 0 else "N/A",
+            "profile_pic_url_hd": dp,
+            "biography": bio
         })
-    except:
-        return jsonify({"status": False})
+    except Exception as e:
+        return jsonify({"status": False, "error": str(e)})
 
+# ---------------------------------------------------------
+# 🖼️ NEW PINTEREST SCRAPER (Deep Search Engine)
+# ---------------------------------------------------------
 @app.route('/pin-search')
 def pin_search():
     query = request.args.get('q')
+    num = int(request.args.get('number', 6))
+    
     try:
-        res = requests.get(f"https://www.pinterest.com/search/pins/?q={query}")
-        images = list(set(re.findall(r'https://i.pinimg.com/736x/.*?\.jpg', res.text)))[:6]
-        return jsonify({"status": True, "result": images})
+        # Pinterest mobile search logic
+        url = f"https://www.pinterest.com/search/pins/?q={query}"
+        res = requests.get(url, headers=HEADERS, timeout=10)
+        
+        # Regex for different image sizes (HD, Medium, Small)
+        # 2026 Pattern Matcher
+        images = re.findall(r'https://i.pinimg.com/736x/.*?\.jpg|https://i.pinimg.com/originals/.*?\.jpg', res.text)
+        
+        # Cleanup & Unique links
+        final_list = list(dict.fromkeys(images))[:num]
+        
+        if not final_list:
+            # Last resort fallback
+            final_list = re.findall(r'https://i.pinimg.com/236x/.*?\.jpg', res.text)[:num]
+
+        return jsonify({
+            "status": True if final_list else False,
+            "result": final_list
+        })
     except:
         return jsonify({"status": False})
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8080)
-  
+    
