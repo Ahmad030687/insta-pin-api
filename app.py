@@ -2,22 +2,21 @@ from flask import Flask, request, jsonify
 import requests
 import re
 
-# 1. Sabse pehle app ko define karna zaroori hai (Error fix)
 app = Flask(__name__)
 
-# Ahmad RDX Stealth Headers
+# Ahmad RDX Ultra-Stealth Headers (iPhone Identity)
 HEADERS = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+    'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1',
     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-    'Accept-Language': 'en-US,en;q=0.9',
+    'Referer': 'https://www.google.com/'
 }
 
 @app.route('/')
 def home():
-    return "🦅 Ahmad RDX Pinterest Private API is ONLINE."
+    return "🦅 Ahmad RDX Pinterest Private API v2.0 is ONLINE."
 
 # ---------------------------------------------------------
-# 🖼️ PINTEREST HD SCRAPER (Standalone Build)
+# 🖼️ PINTEREST HD SCRAPER (Deep Scan Build)
 # ---------------------------------------------------------
 @app.route('/pinterest-api')
 def pinterest_api():
@@ -25,19 +24,33 @@ def pinterest_api():
     limit = int(request.args.get('limit', 6))
     
     if not query:
-        return jsonify({"status": False, "msg": "Query (q) is missing!"})
+        return jsonify({"status": False, "msg": "Query (q) missing!"})
 
     try:
-        # Pinterest Search URL
         url = f"https://www.pinterest.com/search/pins/?q={query}"
-        
         response = requests.get(url, headers=HEADERS, timeout=10)
         
-        # Regex to find HD (736x) image links
-        images = re.findall(r'https://i.pinimg.com/736x/.*?\.jpg', response.text)
+        # Ahmad Bhai: Hum teen tarah ke links dhoondenge
+        # 1. Standard HD (736x)
+        # 2. Original Quality (originals)
+        # 3. Alternative HD (236x fallback)
         
-        # Cleaning and unique links
-        final_list = [img.replace('\\', '') for img in list(dict.fromkeys(images))[:limit]]
+        patterns = [
+            r'https://i.pinimg.com/736x/.*?\.jpg',
+            r'https://i.pinimg.com/originals/.*?\.jpg',
+            r'https://i.pinimg.com/236x/.*?\.jpg'
+        ]
+        
+        all_images = []
+        for pattern in patterns:
+            found = re.findall(pattern, response.text)
+            all_images.extend(found)
+
+        # Safai (Cleanup): Backslashes hatana aur duplicates khatam karna
+        clean_images = [img.replace('\\', '') for img in list(dict.fromkeys(all_images))]
+        
+        # Result limit
+        final_list = clean_images[:limit]
 
         if final_list:
             return jsonify({
@@ -45,15 +58,18 @@ def pinterest_api():
                 "query": query,
                 "count": len(final_list),
                 "result": final_list,
-                "engine": "Ahmad-RDX-Scraper-v1"
+                "engine": "Ahmad-RDX-DeepScan-v2"
             })
         else:
-            return jsonify({"status": False, "msg": "No images found for this query."})
+            return jsonify({
+                "status": False, 
+                "msg": "No images found. Pinterest layout might have changed.",
+                "debug_info": "Headers sent, but regex failed to match."
+            })
 
     except Exception as e:
         return jsonify({"status": False, "error": str(e)})
 
 if __name__ == '__main__':
-    # Render ke liye port 8080 ya 10000 zaroori hai
     app.run(host='0.0.0.0', port=8080)
     
